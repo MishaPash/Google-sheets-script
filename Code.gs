@@ -60,6 +60,23 @@ function onEdit(e) {
 }
 
 // ---------------------------------------------------------------------------
+// Помощник: превращает значение ячейки (настоящая дата ИЛИ текст вроде
+// "7/22/2026") в объект Date. Возвращает null, если распознать не удалось.
+// ---------------------------------------------------------------------------
+function parseDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  var parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// Обрезает время, оставляя только календарный день (00:00:00), чтобы
+// сравнение "вовремя / не вовремя" не зависело от времени суток
+function stripTime(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+// ---------------------------------------------------------------------------
 // 2. Перенос старых завершённых задач из "Tasks" в "Completed"
 //    Запускать по расписанию (Time-driven trigger, ежедневно ночью)
 // ---------------------------------------------------------------------------
@@ -76,9 +93,9 @@ function moveOldCompletedTasks() {
   for (var i = data.length - 1; i >= 1; i--) { // снизу вверх, чтобы удаление строк не сбивало индексы
     var row = data[i];
     var status = row[3] ? row[3].toString().toLowerCase() : "";
-    var dueDate = row[5];
+    var dueDate = parseDateValue(row[5]);
 
-    if (status.indexOf("completed") !== -1 && dueDate instanceof Date) {
+    if (status.indexOf("completed") !== -1 && dueDate) {
       var diffDays = (today - dueDate) / msPerDay;
       if (diffDays > 7) {
         archive.appendRow(row);
@@ -109,23 +126,29 @@ function logDailyOkrCompliance() {
   }
 
   var onTime = 0, late = 0;
+  var lateTasks = [];
 
   [tasksSheet, completedSheet].forEach(function(sheet) {
     if (!sheet) return;
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
       var status = data[i][3] ? data[i][3].toString().toLowerCase() : "";
-      var dueDate = data[i][5];
-      var completedDate = data[i][7];
-      if (status.indexOf("completed") !== -1 && dueDate instanceof Date && completedDate instanceof Date) {
-        if (completedDate <= dueDate) {
+      var dueDate = parseDateValue(data[i][5]);
+      var completedDate = parseDateValue(data[i][7]);
+      if (status.indexOf("completed") !== -1 && dueDate && completedDate) {
+        if (stripTime(completedDate) <= stripTime(dueDate)) {
           onTime++;
         } else {
           late++;
+          lateTasks.push(data[i][1] + " (due " + Utilities.formatDate(dueDate, Session.getScriptTimeZone(), "M/d/yyyy") + ", completed " + Utilities.formatDate(completedDate, Session.getScriptTimeZone(), "M/d/yyyy") + ")");
         }
       }
     }
   });
+
+  if (lateTasks.length > 0) {
+    Logger.log("Late tasks:\n" + lateTasks.join("\n"));
+  }
 
   var total = onTime + late;
   var percent = total > 0 ? Math.round((onTime / total) * 1000) / 10 : 0;
