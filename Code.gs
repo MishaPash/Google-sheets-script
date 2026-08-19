@@ -10,7 +10,46 @@
  *                                 с Due date прошло >7 дней, из "Tasks" в "Completed"
  *  3. logDailyOkrCompliance()   — по будням считает % задач, выполненных в срок,
  *                                 и логирует в отдельную вкладку "OKR Summary"
+ *  4. doGet()                   — точка входа веб-приложения: запускает ежедневные
+ *                                 задачи (2 и 3). Дёргается извне (GitHub Actions)
+ *                                 раз в день по секретной ссылке с токеном.
  */
+
+// ---------------------------------------------------------------------------
+// 0. Веб-приложение: ежедневный запуск по HTTP-запросу извне
+//    Развёртывается как Web App (Deploy → New deployment → Web app).
+//    Запрос должен содержать правильный токен: ...?token=XXXX
+//    Токен хранится в Script Properties под ключом WEBAPP_TOKEN
+//    (Project Settings → Script Properties), в коде его нет.
+// ---------------------------------------------------------------------------
+function doGet(e) {
+  var expected = PropertiesService.getScriptProperties().getProperty('WEBAPP_TOKEN');
+  var provided = (e && e.parameter && e.parameter.token) ? e.parameter.token : '';
+
+  if (!expected || provided !== expected) {
+    return ContentService
+      .createTextOutput('Forbidden: неверный или отсутствует token')
+      .setMimeType(ContentService.MimeType.TEXT);
+  }
+
+  var log = [];
+  try {
+    moveOldCompletedTasks();
+    log.push('moveOldCompletedTasks: OK');
+  } catch (err) {
+    log.push('moveOldCompletedTasks: ERROR ' + err);
+  }
+  try {
+    logDailyOkrCompliance();
+    log.push('logDailyOkrCompliance: OK');
+  } catch (err) {
+    log.push('logDailyOkrCompliance: ERROR ' + err);
+  }
+
+  return ContentService
+    .createTextOutput(log.join('\n'))
+    .setMimeType(ContentService.MimeType.TEXT);
+}
 
 // ---------------------------------------------------------------------------
 // 1. Автозаполнение полей при редактировании (простой триггер onEdit)
