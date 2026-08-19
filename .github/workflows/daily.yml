@@ -1,0 +1,35 @@
+name: Daily Task Tracker Automation
+
+# Запуск: каждый день в 06:00 UTC + возможность запустить вручную из вкладки Actions.
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+# Часовой пояс, в котором скрипт считает "сегодня" и выходные.
+# Поменяйте на свой (например, Europe/Kyiv), если нужно.
+env:
+  TZ: UTC
+  TIMEZONE: UTC
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run daily automation
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: npm start
