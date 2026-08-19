@@ -49,7 +49,9 @@ HISTORY_FIELDS = [
 
 
 def env(name, default=None, required=False):
-    val = os.environ.get(name, default)
+    val = os.environ.get(name)
+    if val is None or val == "":   # unset or blank (e.g. an empty GitHub var) -> default
+        val = default
     if required and not val:
         sys.exit(f"ERROR: missing required environment variable {name}")
     return val
