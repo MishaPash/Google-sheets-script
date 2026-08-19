@@ -225,9 +225,11 @@ function writeSummarySheet_(weeks) {
   sheet.getRange(1, 1, 1, header.length).setFontWeight('bold');
   sheet.setFrozenRows(1);
 
-  // Footer note with the last refresh time.
+  // Footer note with the last refresh time, in the spreadsheet's own timezone.
+  var tz = ss.getSpreadsheetTimeZone() || 'Etc/UTC';
   sheet.getRange(rows.length + 2, 1)
-       .setValue('Last updated: ' + new Date().toISOString() +
+       .setValue('Last updated: ' +
+                 Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm z') +
                  '  (auto-generated — do not edit by hand)');
   sheet.autoResizeColumns(1, header.length);
 }
