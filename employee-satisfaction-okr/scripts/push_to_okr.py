@@ -197,8 +197,11 @@ def main():
                   f"value {result.get('value')}, progress {result.get('progress')}%.")
         print(status)
 
-    pushed_at = datetime.now(timezone.utc).isoformat()
-    append_history(latest, pushed_at if not dry_run else "DRY_RUN")
+    # Only record history on a real push. A dry run must not mark the week as
+    # done, otherwise the next real run would treat it as already pushed and
+    # skip the actual GetOKRs check-in.
+    if not dry_run:
+        append_history(latest, datetime.now(timezone.utc).isoformat())
     report_path = write_report(latest, status)
     print(f"Wrote report: {os.path.relpath(report_path, ROOT)}")
 
