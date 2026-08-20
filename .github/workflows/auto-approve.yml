@@ -1,0 +1,35 @@
+name: Auto-approve OKR automation PRs
+
+# Auto-approves and merges the weekly office-satisfaction PRs opened by the
+# employee-satisfaction OKR automation, so no manual review is needed when
+# working on this repository solo (per DevOps guidance).
+#
+# How it satisfies "require approvals":
+#   - The weekly workflow opens the PR using a PAT (secrets.GH_PAT), so the PR
+#     author is a real user.
+#   - This workflow approves it as github-actions[bot] — a DIFFERENT identity,
+#     which GitHub allows (you cannot approve your own PR).
+# Requires: Settings -> Actions -> General -> "Allow GitHub Actions to create
+# and approve pull requests" enabled.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    # Only touch the automation's own PRs, never anything else.
+    if: startsWith(github.head_ref, 'okr/weekly-office-satisfaction')
+    steps:
+      - name: Approve and merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr review "$PR_URL" --approve
+          gh pr merge "$PR_URL" --squash --delete-branch

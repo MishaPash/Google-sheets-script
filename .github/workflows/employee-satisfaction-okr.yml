@@ -51,6 +51,12 @@ jobs:
         if: steps.okr.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
+          # A PAT (not the default GITHUB_TOKEN) so the PR is authored by a real
+          # user — that lets the auto-approve workflow approve it (you cannot
+          # approve your own PR) and lets it trigger downstream workflows.
+          # Falls back to GITHUB_TOKEN if no PAT is configured (then the PR is
+          # opened but not auto-approved).
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           branch: okr/weekly-office-satisfaction
           base: main
           add-paths: |

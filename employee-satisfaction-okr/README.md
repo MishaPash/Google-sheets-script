@@ -100,6 +100,25 @@ secret** добавь:
 
 ---
 
+## Авто-одобрение и авто-мёрдж PR (опционально)
+
+Если в репозитории включены обязательные ревью, пятничный PR можно закрывать
+автоматически (по согласованию с DevOps — auto-approve своих PR разрешён при
+работе в одиночку):
+
+1. Создай **Personal Access Token** (fine-grained, доступ к этому репо:
+   *Contents: Read/Write*, *Pull requests: Read/Write*) и положи его в секрет
+   **`GH_PAT`**. Он нужен, чтобы PR открывался от твоего имени, а не от
+   `github-actions` — иначе бот не сможет одобрить свой же PR.
+2. Включи **Settings → Actions → General → Allow GitHub Actions to create and
+   approve pull requests**.
+3. Workflow `../.github/workflows/auto-approve.yml` сам одобрит и смёрджит PR
+   (squash + удаление ветки). Он срабатывает только на ветку
+   `okr/weekly-office-satisfaction` — чужие PR не трогает.
+
+Без `GH_PAT` всё тоже работает — PR просто откроется под `github-actions` и его
+нужно будет смёрджить вручную. Запись в GetOKRs от мёрджа PR не зависит.
+
 ## Как это работает еженедельно
 
 - Расписание: `cron: '0 15 * * 5'` — пятница 15:00 UTC. Изменить — в
