@@ -1,20 +1,28 @@
-name: Auto-approve OKR automation PRs
+name: Auto-approve my PRs
 
-# Auto-approves and merges the weekly office-satisfaction PRs opened by the
-# employee-satisfaction OKR automation, so no manual review is needed when
-# working on this repository solo (per DevOps guidance).
+# Automatically approves and merges pull requests opened by a specific account,
+# so solo work does not wait on a teammate's review (per DevOps guidance).
 #
-# How it satisfies "require approvals":
-#   - The weekly workflow opens the PR using a PAT (secrets.GH_PAT), so the PR
-#     author is a real user.
-#   - This workflow approves it as github-actions[bot] — a DIFFERENT identity,
-#     which GitHub allows (you cannot approve your own PR).
-# Requires: Settings -> Actions -> General -> "Allow GitHub Actions to create
-# and approve pull requests" enabled.
+# Why it works (the two-identity rule):
+#   - GitHub forbids approving your OWN pull request. So the PR must be opened by
+#     one identity and approved by a DIFFERENT one.
+#   - Here the PR is opened by ${{ AUTO_APPROVE_ACTOR }} (a real user), and this
+#     job approves it as github-actions[bot] — a different identity. Allowed.
+#   - Note: a PR opened with the default GITHUB_TOKEN does NOT trigger this
+#     workflow at all, and can't be approved by the same bot. That's why any
+#     automation that should be auto-merged must open its PR with a PAT/App token
+#     belonging to the account below (see GH_PAT in the weekly workflow).
+#
+# Requirements:
+#   - Settings -> Actions -> General -> "Allow GitHub Actions to create and
+#     approve pull requests" = enabled.
+#   - Branch protection must accept a github-actions[bot] approval (1 required
+#     review, no mandatory CODEOWNERS). If your ruleset is stricter, add the
+#     account/app to the ruleset Bypass list instead (see README).
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened, synchronize]
 
 permissions:
   pull-requests: write
@@ -23,8 +31,8 @@ permissions:
 jobs:
   auto-approve:
     runs-on: ubuntu-latest
-    # Only touch the automation's own PRs, never anything else.
-    if: startsWith(github.head_ref, 'okr/weekly-office-satisfaction')
+    # Only auto-approve PRs opened by this account. Change to your login.
+    if: github.actor == 'MishaPash'
     steps:
       - name: Approve and merge
         env:
