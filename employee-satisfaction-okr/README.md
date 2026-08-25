@@ -100,24 +100,32 @@ secret** добавь:
 
 ---
 
-## Авто-одобрение и авто-мёрдж PR (опционально)
+## Авто-одобрение и авто-мёрдж PR
 
-Если в репозитории включены обязательные ревью, пятничный PR можно закрывать
-автоматически (по согласованию с DevOps — auto-approve своих PR разрешён при
-работе в одиночку):
+`../.github/workflows/auto-approve.yml` автоматически одобряет и мёрджит
+**любой PR, открытый указанным аккаунтом** (`github.actor == 'MishaPash'`), —
+как в `appodeal/appodeal-pulse`. По согласованию с DevOps auto-approve своих
+PR разрешён при работе в одиночку.
 
-1. Создай **Personal Access Token** (fine-grained, доступ к этому репо:
-   *Contents: Read/Write*, *Pull requests: Read/Write*) и положи его в секрет
-   **`GH_PAT`**. Он нужен, чтобы PR открывался от твоего имени, а не от
-   `github-actions` — иначе бот не сможет одобрить свой же PR.
+Почему так (правило двух личностей):
+- GitHub запрещает одобрять свой же PR — значит открывает PR один аккаунт, а
+  одобряет **другой**. Здесь PR открывает пользователь, а одобряет
+  `github-actions[bot]`.
+- PR, созданный дефолтным `GITHUB_TOKEN`, вообще не триггерит этот workflow.
+  Поэтому автоматизация должна открывать PR под **PAT** нужного аккаунта.
+
+Настройка:
+1. Создай **fine-grained PAT** (доступ к репо: *Contents: R/W*,
+   *Pull requests: R/W*) → секрет **`GH_PAT`**. Тогда еженедельный PR откроется
+   от твоего имени и попадёт под auto-approve (и зачтётся в Culture Health как
+   твой PR).
 2. Включи **Settings → Actions → General → Allow GitHub Actions to create and
    approve pull requests**.
-3. Workflow `../.github/workflows/auto-approve.yml` сам одобрит и смёрджит PR
-   (squash + удаление ветки). Он срабатывает только на ветку
-   `okr/weekly-office-satisfaction` — чужие PR не трогает.
+3. Убедись, что branch protection принимает одобрение `github-actions[bot]`
+   (1 required review, без обязательных CODEOWNERS). Если правило строже —
+   добавь аккаунт/GitHub App в **Bypass list** ruleset'а.
 
-Без `GH_PAT` всё тоже работает — PR просто откроется под `github-actions` и его
-нужно будет смёрджить вручную. Запись в GetOKRs от мёрджа PR не зависит.
+Запись в GetOKRs от мёрджа PR не зависит — она происходит в самом прогоне.
 
 ## Как это работает еженедельно
 
