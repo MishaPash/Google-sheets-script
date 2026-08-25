@@ -1,155 +1,128 @@
-# Employee Satisfaction OKR — автоматизация
+# Office satisfaction — OKR automation
 
-Каждую пятницу автоматически:
+Every Friday this automation:
 
-1. читает еженедельный опрос удовлетворённости офисом (Slack Polly) из
-   Google-таблицы,
-2. считает процент удовлетворённости по неделям и пишет их в **отдельный лист
-   `OKR Satisfaction`** в той же таблице,
-3. отправляет значение за **последнюю завершённую неделю** в GetOKRs как
-   check-in в KR
-   *«[Lagging] Achieve an employee satisfaction rate of at least 90% …»*,
-4. открывает pull request с отчётом (для аудита).
-
-```
-Google Sheet ──(читает как владелец)──> Apps Script (Web App)
-                                          │ считает % по неделям
-                                          │ пишет лист "OKR Satisfaction"
-                                          └── отдаёт JSON последней недели
-                                                     ▲  (token)
-                     GitHub Action (пятница, cron) ──┘
-                           │ POST check-in → GetOKRs (Bearer API key)
-                           └── открывает PR с отчётом
-```
-
-Service account **не нужен**: Apps Script выполняется от имени владельца
-таблицы и читает/пишет её напрямую.
-
-## Формула
-
-Для каждой недели (одинаковый **Polly Id**, колонка A) берутся все заполненные
-числовые оценки из колонок **J** («How would you rate your office experience
-this week?») и **M** («How quickly were office issues resolved this week?»):
+1. Reads the weekly Slack Polly office-satisfaction survey from the Google
+   Sheet (via a bound Apps Script web app).
+2. Computes a satisfaction % per week and writes it to a separate
+   **`OKR Satisfaction`** tab in the same spreadsheet.
+3. Pushes the **latest completed week's** satisfaction % into the GetOKRs key
+   result *"[Lagging] Achieve an employee satisfaction rate of at least 90% …"*
+   as a check-in.
+4. Opens a pull request with the report as an audit trail (auto-approved and
+   merged by the shared `auto-approve.yml`).
 
 ```
-удовлетворённость % = сумма_оценок / (макс_балл × количество_оценок) × 100
+Google Sheet ──(read as the owner)──> Apps Script (Web App)
+                                        │ computes % per week
+                                        │ writes the "OKR Satisfaction" tab
+                                        └── returns the latest week as JSON
+                                                   ▲  (token)
+                    GitHub Action (Friday, cron) ──┘
+                          │ POST check-in → GetOKRs (Bearer API key)
+                          └── opens a PR with the report
 ```
 
-- Если все проголосовали 5 по 5-балльной шкале → 100%.
-- Шкала (5 или 10) определяется автоматически по неделе: если в неделе есть
-  оценка > 5, считается 10-балльной (так корректно обрабатываются старые
-  10-балльные опросы).
+No Google service account is required: the Apps Script runs as the spreadsheet
+owner and reads/writes the sheet directly.
 
-Пример реальных данных: неделя `2026-08-17` → 100%, `2026-07-06` → 92%,
-`2026-04-24` (10-балльная) → 98.6%.
+## Formula
 
-## Файлы
+For each week (same **Polly Id**, column A) the automation takes every filled-in
+numeric rating from columns **J** ("How would you rate your office experience
+this week?") and **M** ("How quickly were office issues resolved this week?"):
 
-| Файл | Назначение |
+```
+satisfaction % = sum(ratings) / (max_scale × count(ratings)) × 100
+```
+
+- If everyone votes 5 on a 5-point scale → 100%.
+- The scale (5 or 10) is auto-detected per week, so historical 10-point polls
+  are handled correctly too.
+
+Real examples: week `2026-08-17` → 100%, `2026-07-06` → 92%, `2026-04-24`
+(10-point) → 98.6%.
+
+## Files
+
+| File | Purpose |
 |---|---|
-| `apps-script/Code.gs` | Apps Script: расчёт, запись листа `OKR Satisfaction`, веб-эндпоинт |
-| `apps-script/appsscript.json` | Манифест Apps Script (веб-приложение) |
-| `scripts/push_to_okr.py` | Скрипт Action: дергает Apps Script, пишет check-in, формирует отчёт |
-| `../.github/workflows/office-satisfaction.yml` | Расписание (пятница) + открытие PR |
-| `data/history.csv` | История отправленных недель (заполняется автоматически, идемпотентность) |
-| `reports/*.md` | Понедельные отчёты (создаются автоматически) |
+| `apps-script/Code.gs` | Apps Script: compute, write the `OKR Satisfaction` tab, token-protected web endpoint |
+| `apps-script/appsscript.json` | Apps Script manifest (web app) |
+| `scripts/push_to_okr.py` | Run by the workflow: fetch from Apps Script, post the GetOKRs check-in, write report + history |
+| `../.github/workflows/office-satisfaction.yml` | Friday schedule + PR creation |
+| `data/history.csv` | History of pushed weeks (auto-filled; provides idempotency) |
+| `reports/*.md` | Per-week reports (auto-created) |
 
----
+## Secrets
 
-## Настройка (один раз)
+Set these in the repository (Settings → Secrets and variables → Actions):
 
-### Часть A. Google Apps Script (~5 минут)
-
-1. Открой таблицу → **Extensions → Apps Script**.
-2. Вставь содержимое `apps-script/Code.gs` в файл `Code.gs`.
-   Если хочешь, включи манифест: **Project Settings → «Show appsscript.json»**,
-   затем вставь `apps-script/appsscript.json`.
-3. Выбери функцию **`setup`** и нажми **Run**. Разреши доступ (authorize).
-   В логе (**View → Logs**) появится строка `API_TOKEN = …` — **скопируй токен**.
-4. **Deploy → New deployment → тип «Web app»**:
-   - *Execute as:* **Me** (владелец таблицы),
-   - *Who has access:* **Anyone**.
-   - Нажми **Deploy**, скопируй **Web app URL** (заканчивается на `/exec`).
-5. (Опционально) проверь в браузере: `<URL>?token=<токен>` — должен вернуться
-   JSON `{"ok":true,...}`, а в таблице появится лист **`OKR Satisfaction`**.
-
-> Токен также сохранён в Script Properties (ключ `API_TOKEN`). Повторный запуск
-> `setup` его не меняет.
-
-### Часть B. GitHub Secrets
-
-В репозитории → **Settings → Secrets and variables → Actions → New repository
-secret** добавь:
-
-| Secret | Значение |
+| Secret | Where to get it |
 |---|---|
-| `APPS_SCRIPT_URL` | Web app URL из шага A.4 (`…/exec`) |
-| `APPS_SCRIPT_TOKEN` | токен из шага A.3 |
-| `OKRS_API_KEY` | API-ключ GetOKRs (создаётся в GetOKRs → настройки → API keys) |
+| `APPS_SCRIPT_URL` | Apps Script → Deploy → Manage deployments → the Web app URL (ends with `/exec`) |
+| `APPS_SCRIPT_TOKEN` | Apps Script → run `setup()` → View → Logs → the `API_TOKEN = …` line |
+| `OKRS_API_KEY` | GetOKRs → Settings → API keys → Create |
+| `GH_PAT` | GitHub fine-grained PAT (owner: appodeal, this repo; Contents R/W + Pull requests R/W) — lets the weekly PR be opened by you so `auto-approve.yml` can merge it |
 
-Идентификаторы KR/организации уже зашиты в `scripts/push_to_okr.py` по
-умолчанию. Если нужно переопределить — добавь **Variables** (не Secrets)
-`OKRS_ORG_ID` и `OKRS_KR_ID`.
+`OKRS_ORG_ID` and `OKRS_KR_ID` are baked into `scripts/push_to_okr.py` as
+defaults; override them with repository **Variables** only if the KR/org changes.
 
-### Часть C. Проверка
+## One-time setup
 
-**Actions → «Employee satisfaction OKR (weekly)» → Run workflow**.
-Для безопасной проверки поставь галочку **dry_run = true** — тогда посчитается
-всё и откроется PR, но запись в GetOKRs не произойдёт. Убедившись, что числа
-верны, запусти без dry_run (или дождись пятницы).
+### 1. Google Apps Script
 
----
+1. Spreadsheet → **Extensions → Apps Script**. Paste `apps-script/Code.gs`
+   (and, via Project Settings → "Show appsscript.json", the manifest).
+2. Run **`setup`** once, authorize, and copy the `API_TOKEN` from the log →
+   secret `APPS_SCRIPT_TOKEN`.
+3. **Deploy → New deployment → Web app**, *Execute as:* **Me**,
+   *Who has access:* **Anyone**. Copy the `/exec` URL → secret `APPS_SCRIPT_URL`.
 
-## Авто-одобрение и авто-мёрдж PR
+### 2. Repository
 
-`../.github/workflows/auto-approve.yml` автоматически одобряет и мёрджит
-**любой PR, открытый указанным аккаунтом** (`github.actor == 'MishaPash'`), —
-как в `appodeal/appodeal-pulse`. По согласованию с DevOps auto-approve своих
-PR разрешён при работе в одиночку.
+- Add the four secrets above.
+- **Settings → Actions → General → Workflow permissions:** *Read and write* +
+  *Allow GitHub Actions to create and approve pull requests*.
 
-Почему так (правило двух личностей):
-- GitHub запрещает одобрять свой же PR — значит открывает PR один аккаунт, а
-  одобряет **другой**. Здесь PR открывает пользователь, а одобряет
-  `github-actions[bot]`.
-- PR, созданный дефолтным `GITHUB_TOKEN`, вообще не триггерит этот workflow.
-  Поэтому автоматизация должна открывать PR под **PAT** нужного аккаунта.
+## How it runs weekly
 
-Настройка:
-1. Создай **fine-grained PAT** (доступ к репо: *Contents: R/W*,
-   *Pull requests: R/W*) → секрет **`GH_PAT`**. Тогда еженедельный PR откроется
-   от твоего имени и попадёт под auto-approve (и зачтётся в Culture Health как
-   твой PR).
-2. Включи **Settings → Actions → General → Allow GitHub Actions to create and
-   approve pull requests**.
-3. Убедись, что branch protection принимает одобрение `github-actions[bot]`
-   (1 required review, без обязательных CODEOWNERS). Если правило строже —
-   добавь аккаунт/GitHub App в **Bypass list** ruleset'а.
-
-Запись в GetOKRs от мёрджа PR не зависит — она происходит в самом прогоне.
-
-## Как это работает еженедельно
-
-- Расписание: `cron: '0 15 * * 5'` — пятница 15:00 UTC. Изменить — в
+- Schedule: `cron: '0 15 * * 5'` — Fridays 15:00 UTC. Change it in
   `../.github/workflows/office-satisfaction.yml`.
-- Каждый запуск отправляет **только новую** неделю. Если неделя уже была
-  отправлена (есть в `data/history.csv`), запись в GetOKRs и PR пропускаются —
-  повторные запуски безопасны (идемпотентность).
-- Полный список недель всегда доступен на листе `OKR Satisfaction` в таблице.
+- Each run pushes **only a new** week. If the week was already pushed (present
+  in `data/history.csv`), the GetOKRs write and the PR are skipped — re-runs are
+  safe (idempotent).
+- The full week-by-week list is always on the `OKR Satisfaction` tab.
 
-## Отладка
+## Verifying it works
 
-- **Apps Script вернул не JSON / `unauthorized`** — не совпал токен
-  (`APPS_SCRIPT_TOKEN` ≠ Script Property `API_TOKEN`) или деплой сделан не как
-  «Anyone».
-- **GetOKRs 401/403** — недействительный `OKRS_API_KEY`.
-- **PR не создался** — значит новых недель нет (уже отправлено) — это норма.
+1. **Dry run (no KR write).** Actions → *Employee satisfaction OKR (weekly)* →
+   **Run workflow** → tick **dry_run = true**. Check: green run, the computed
+   value in the log, the `OKR Satisfaction` tab updated, and **nothing** written
+   to GetOKRs.
+2. **Real run.** Run again with **dry_run = false**. Check: a new check-in on
+   the KR, the PR opened and auto-merged, and a new row in `data/history.csv`.
+3. **Autonomy.** From then on the Friday cron does check-in + PR + merge by
+   itself.
 
-## Локальный прогон
+## Local run
 
 ```bash
 export APPS_SCRIPT_URL='https://script.google.com/macros/s/XXX/exec'
 export APPS_SCRIPT_TOKEN='...'
 export OKRS_API_KEY='...'
-export DRY_RUN=1   # не писать в GetOKRs
+export DRY_RUN=1   # do not write to GetOKRs
 python office-satisfaction/scripts/push_to_okr.py
 ```
+
+## Troubleshooting
+
+- **Apps Script returns non-JSON / `unauthorized`** — token mismatch
+  (`APPS_SCRIPT_TOKEN` ≠ Script Property `API_TOKEN`) or the deployment is not
+  "Anyone".
+- **GetOKRs 401/403** — invalid `OKRS_API_KEY`.
+- **PR isn't auto-merged** — the "Allow GitHub Actions to create and approve
+  pull requests" setting is off, the PR was opened by `github-actions` (so
+  `GH_PAT` wasn't picked up), or the `github.actor` guard in `auto-approve.yml`
+  isn't your login.
+- **No PR at all** — there is no new week to push (already done); this is normal.
