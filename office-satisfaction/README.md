@@ -50,7 +50,7 @@ this week?») и **M** («How quickly were office issues resolved this week?»):
 | `apps-script/Code.gs` | Apps Script: расчёт, запись листа `OKR Satisfaction`, веб-эндпоинт |
 | `apps-script/appsscript.json` | Манифест Apps Script (веб-приложение) |
 | `scripts/push_to_okr.py` | Скрипт Action: дергает Apps Script, пишет check-in, формирует отчёт |
-| `../.github/workflows/employee-satisfaction-okr.yml` | Расписание (пятница) + открытие PR |
+| `../.github/workflows/office-satisfaction.yml` | Расписание (пятница) + открытие PR |
 | `data/history.csv` | История отправленных недель (заполняется автоматически, идемпотентность) |
 | `reports/*.md` | Понедельные отчёты (создаются автоматически) |
 
@@ -130,7 +130,7 @@ PR разрешён при работе в одиночку.
 ## Как это работает еженедельно
 
 - Расписание: `cron: '0 15 * * 5'` — пятница 15:00 UTC. Изменить — в
-  `../.github/workflows/employee-satisfaction-okr.yml`.
+  `../.github/workflows/office-satisfaction.yml`.
 - Каждый запуск отправляет **только новую** неделю. Если неделя уже была
   отправлена (есть в `data/history.csv`), запись в GetOKRs и PR пропускаются —
   повторные запуски безопасны (идемпотентность).
@@ -151,5 +151,5 @@ export APPS_SCRIPT_URL='https://script.google.com/macros/s/XXX/exec'
 export APPS_SCRIPT_TOKEN='...'
 export OKRS_API_KEY='...'
 export DRY_RUN=1   # не писать в GetOKRs
-python employee-satisfaction-okr/scripts/push_to_okr.py
+python office-satisfaction/scripts/push_to_okr.py
 ```
