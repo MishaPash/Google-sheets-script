@@ -1,6 +1,6 @@
 name: Daily Task Tracker Automation
 
-# Запуск: каждый день в 06:00 UTC (~09:00 по Киеву) + ручной запуск из вкладки Actions.
+# Runs: every day at 06:00 UTC (~09:00 Kyiv time) + manual run from the Actions tab.
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -16,14 +16,14 @@ jobs:
           WEBAPP_TOKEN: ${{ secrets.WEBAPP_TOKEN }}
         run: |
           set -euo pipefail
-          echo "Дёргаем веб-приложение Apps Script..."
+          echo "Calling the Apps Script web app..."
           response=$(curl -sS -L -f -G "$WEBAPP_URL" \
             --data-urlencode "token=$WEBAPP_TOKEN" \
             --retry 3 --retry-delay 5)
-          echo "Ответ от Apps Script:"
+          echo "Response from Apps Script:"
           echo "$response"
-          # Если Apps Script вернул текст с ошибкой — пометить шаг как упавший.
+          # If Apps Script returned an error message, mark this step as failed.
           if echo "$response" | grep -qi "ERROR\|Forbidden"; then
-            echo "::error::Apps Script сообщил об ошибке (см. ответ выше)."
+            echo "::error::Apps Script reported an error (see the response above)."
             exit 1
           fi

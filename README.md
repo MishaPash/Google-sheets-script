@@ -1,82 +1,82 @@
-# Office Task Tracker — ежедневный запуск через GitHub
+# Office Task Tracker — daily run via GitHub
 
-Код автоматизации живёт в **Google Apps Script** (внутри таблицы), а **GitHub
-раз в день дёргает его** по секретной ссылке. Google Cloud и сервис-аккаунт
-**не нужны** — этот способ работает даже на корпоративном аккаунте, где создание
-проектов запрещено.
+The automation code lives in **Google Apps Script** (inside the spreadsheet), and
+**GitHub triggers it once a day** via a secret URL. No Google Cloud project and no
+service account are required — this approach works even on a corporate account
+where creating Cloud projects is blocked.
 
-## Как это устроено
+## How it works
 
-1. В таблице есть код `Code.gs` с функциями автоматизации.
-2. Функция `doGet` «публикуется» как веб-приложение (Web App) → получается
-   секретная ссылка вида `https://script.google.com/macros/s/.../exec`.
-3. GitHub Actions раз в день открывает эту ссылку с секретным токеном.
-4. Apps Script выполняет ежедневные задачи и меняет таблицу.
+1. The spreadsheet contains `Code.gs` with the automation functions.
+2. The `doGet` function is published as a Web App → you get a secret URL like
+   `https://script.google.com/macros/s/.../exec`.
+3. GitHub Actions opens that URL with a secret token once a day.
+4. Apps Script runs the daily jobs and updates the spreadsheet.
 
-## Что делает ежедневный запуск
+## What the daily run does
 
-- **`moveOldCompletedTasks`** — переносит завершённые задачи (`Completed`), у
-  которых с `Due date` прошло больше 7 дней, с листа `Tasks` на лист `Completed`.
-- **`logDailyOkrCompliance`** — по будням считает % задач, выполненных в срок, и
-  дописывает строку на лист `OKR Summary` (создаётся автоматически).
+- **`moveOldCompletedTasks`** — moves tasks with status `Completed` whose `Due date`
+  is more than 7 days in the past from the `Tasks` sheet to the `Completed` sheet.
+- **`logDailyOkrCompliance`** — on weekdays, computes the % of tasks completed on
+  time and appends a row to the `OKR Summary` sheet (created automatically).
 
-Функция **`onEdit`** (автозаполнение при ручном вводе) остаётся работать внутри
-таблицы как обычно — её трогать не нужно.
+The **`onEdit`** function (auto-fill on manual input) keeps working inside the
+spreadsheet as usual — it does not need to be changed.
 
-## Настройка (один раз)
+## Setup (one time)
 
-### Шаг 1. Придумать токен
+### Step 1. Pick a token
 
-Придумай любую длинную случайную строку — это «пароль» к ссылке. Например:
-`k7Qz93mР-taskbot-2026-x8Lp`. Запиши её, понадобится дважды.
+Choose any long random string — this is the "password" for the URL. For example:
+`taskbot-2026-k7Qz93mLp-x8`. Write it down; you will need it twice.
 
-### Шаг 2. Сохранить токен в Apps Script
+### Step 2. Store the token in Apps Script
 
-1. Таблица → **Extensions (Расширения) → Apps Script**.
-2. Слева ⚙️ **Project Settings (Настройки проекта)**.
-3. Раздел **Script Properties → Add script property**:
+1. Spreadsheet → **Extensions → Apps Script**.
+2. Left side ⚙️ **Project Settings**.
+3. Section **Script Properties → Add script property**:
    - Property: `WEBAPP_TOKEN`
-   - Value: твой токен из шага 1
+   - Value: your token from Step 1
    - **Save script properties**.
 
-### Шаг 3. Опубликовать веб-приложение
+### Step 3. Publish the web app
 
-1. В редакторе Apps Script справа сверху: **Deploy → New deployment**.
-2. Шестерёнка ⚙️ рядом с «Select type» → выбери **Web app**.
-3. Заполни:
-   - **Execute as:** `Me` (от твоего имени).
-   - **Who has access:** `Anyone` (кто угодно со ссылкой).
-4. **Deploy** → согласись с запросом доступа (**Authorize access**, выбери свой
-   аккаунт, «Allow»).
-5. Скопируй **Web app URL** (заканчивается на `/exec`) — понадобится в шаге 4.
+1. In the Apps Script editor, top right: **Deploy → New deployment**.
+2. Gear ⚙️ next to "Select type" → choose **Web app**.
+3. Fill in:
+   - **Execute as:** `Me`
+   - **Who has access:** `Anyone`
+4. **Deploy** → approve the access request (**Authorize access**, pick your
+   account, "Allow").
+5. Copy the **Web app URL** (it ends with `/exec`) — needed in Step 4.
 
-### Шаг 4. Добавить секреты в GitHub
+### Step 4. Add secrets in GitHub
 
-Репозиторий → **Settings → Secrets and variables → Actions → New repository secret**.
-Создай два секрета:
+Repository → **Settings → Secrets and variables → Actions → New repository secret**.
+Create two secrets:
 
-| Имя            | Значение                                    |
+| Name           | Value                                       |
 | -------------- | ------------------------------------------- |
-| `WEBAPP_URL`   | Web app URL из шага 3 (который на `/exec`).  |
-| `WEBAPP_TOKEN` | Тот же токен, что в шаге 1.                  |
+| `WEBAPP_URL`   | The Web app URL from Step 3 (the `/exec` one). |
+| `WEBAPP_TOKEN` | The same token as in Step 1.                |
 
-### Шаг 5. Проверить
+### Step 5. Test
 
-GitHub → вкладка **Actions → Daily Task Tracker Automation → Run workflow**.
-Через полминуты обнови страницу:
+GitHub → **Actions → Daily Task Tracker Automation → Run workflow**.
+Refresh after ~30 seconds:
 
-- ✅ зелёная галочка — работает, проверь лист `OKR Summary` в таблице;
-- ❌ красный крест — открой запуск, посмотри «Ответ от Apps Script» и пришли текст.
+- ✅ green check — it works, check the `OKR Summary` sheet in the spreadsheet;
+- ❌ red cross — open the run, read "Response from Apps Script", and share the text.
 
-Дальше всё работает само каждый день в 06:00 UTC.
+After that it runs on its own every day at 06:00 UTC.
 
-## Как поменять время запуска
+## Changing the schedule
 
-В `.github/workflows/daily.yml` строка `cron: '0 6 * * *'` — это 06:00 **UTC**
-(cron в GitHub всегда в UTC). Пример: 09:00 по Киеву летом = `'0 6 * * *'`.
+In `.github/workflows/daily.yml`, the line `cron: '0 6 * * *'` means 06:00 **UTC**
+(GitHub cron is always UTC).
 
-## Важно про повторное развёртывание
+## Important: re-deploying after code changes
 
-Если ты **меняешь код** в `Code.gs`, ссылка на веб-приложение **не обновляется
-сама**. Нужно: **Deploy → Manage deployments → ✏️ (Edit) → Version: New version →
-Deploy**. URL при этом останется прежним.
+If you **change the code** in `Code.gs`, the web app URL does **not** update
+automatically. You need to: **Deploy → Manage deployments → ✏️ Edit → Version: New
+version → Deploy**. The URL stays the same.

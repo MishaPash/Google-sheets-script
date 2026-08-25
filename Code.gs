@@ -1,26 +1,26 @@
 /**
  * Office Task Tracker — Automation Scripts
- * Столбцы таблицы: A=Received, B=Task, C=Priority, D=Status,
- *                  E=Est time, F=Due date, G=Start date,
- *                  H=Completed date, I=Comments
+ * Sheet columns: A=Received, B=Task, C=Priority, D=Status,
+ *                E=Est time, F=Due date, G=Start date,
+ *                H=Completed date, I=Comments
  *
- * Функции:
- *  1. onEdit()                  — автозаполнение полей при вводе задачи / смене статуса
- *  2. moveOldCompletedTasks()   — переносит задачи Status=Completed, у которых
- *                                 с Due date прошло >7 дней, из "Tasks" в "Completed"
- *  3. logDailyOkrCompliance()   — по будням считает % задач, выполненных в срок,
- *                                 и логирует в отдельную вкладку "OKR Summary"
- *  4. doGet()                   — точка входа веб-приложения: запускает ежедневные
- *                                 задачи (2 и 3). Дёргается извне (GitHub Actions)
- *                                 раз в день по секретной ссылке с токеном.
+ * Functions:
+ *  1. onEdit()                  — auto-fills fields when a task is entered / status changes
+ *  2. moveOldCompletedTasks()   — moves tasks with Status=Completed whose Due date is
+ *                                 more than 7 days in the past from "Tasks" to "Completed"
+ *  3. logDailyOkrCompliance()   — on weekdays, computes the % of tasks completed on time
+ *                                 and logs it into a separate "OKR Summary" tab
+ *  4. doGet()                   — web app entry point: runs the daily jobs (2 and 3).
+ *                                 Triggered externally (GitHub Actions) once a day via a
+ *                                 secret URL with a token.
  */
 
 // ---------------------------------------------------------------------------
-// 0. Веб-приложение: ежедневный запуск по HTTP-запросу извне
-//    Развёртывается как Web App (Deploy → New deployment → Web app).
-//    Запрос должен содержать правильный токен: ...?token=XXXX
-//    Токен хранится в Script Properties под ключом WEBAPP_TOKEN
-//    (Project Settings → Script Properties), в коде его нет.
+// 0. Web app: daily run triggered by an external HTTP request
+//    Deployed as a Web App (Deploy → New deployment → Web app).
+//    The request must include the correct token: ...?token=XXXX
+//    The token is stored in Script Properties under the key WEBAPP_TOKEN
+//    (Project Settings → Script Properties); it is never hardcoded here.
 // ---------------------------------------------------------------------------
 function doGet(e) {
   var expected = PropertiesService.getScriptProperties().getProperty('WEBAPP_TOKEN');
@@ -28,7 +28,7 @@ function doGet(e) {
 
   if (!expected || provided !== expected) {
     return ContentService
-      .createTextOutput('Forbidden: неверный или отсутствует token')
+      .createTextOutput('Forbidden: missing or invalid token')
       .setMimeType(ContentService.MimeType.TEXT);
   }
 
@@ -52,18 +52,18 @@ function doGet(e) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Автозаполнение полей при редактировании (простой триггер onEdit)
+// 1. Auto-fill fields on edit (simple onEdit trigger)
 // ---------------------------------------------------------------------------
 function onEdit(e) {
-  if (!e || !e.range) return; // защита от ручного запуска без события правки
+  if (!e || !e.range) return; // guard against manual runs without an edit event
   var sheet = e.source.getActiveSheet();
   var row = e.range.getRow();
   var col = e.range.getColumn();
 
-  if (row === 1) return; // пропускаем заголовок
+  if (row === 1) return; // skip the header row
   var today = new Date();
 
-  // Начал печатать в колонке "Task" (B)
+  // Started typing in the "Task" column (B)
   if (col === 2 && e.range.getValue() !== "") {
     var received = sheet.getRange(row, 1);
     if (received.getValue() === "") received.setValue(today);
@@ -75,7 +75,7 @@ function onEdit(e) {
     if (dueDate.getValue() === "") dueDate.setValue(today);
   }
 
-  // Смена статуса (колонка D)
+  // Status change (column D)
   if (col === 4) {
     var status = e.range.getValue().toString().toLowerCase();
 
@@ -99,8 +99,8 @@ function onEdit(e) {
 }
 
 // ---------------------------------------------------------------------------
-// Помощник: превращает значение ячейки (настоящая дата ИЛИ текст вроде
-// "7/22/2026") в объект Date. Возвращает null, если распознать не удалось.
+// Helper: converts a cell value (a real Date OR text like "7/22/2026")
+// into a Date object. Returns null if it cannot be parsed.
 // ---------------------------------------------------------------------------
 function parseDateValue(value) {
   if (!value) return null;
@@ -109,27 +109,27 @@ function parseDateValue(value) {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-// Обрезает время, оставляя только календарный день (00:00:00), чтобы
-// сравнение "вовремя / не вовремя" не зависело от времени суток
+// Strips the time part, keeping only the calendar day (00:00:00), so the
+// "on time / late" comparison does not depend on the time of day.
 function stripTime(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 // ---------------------------------------------------------------------------
-// 2. Перенос старых завершённых задач из "Tasks" в "Completed"
-//    Запускать по расписанию (Time-driven trigger, ежедневно ночью)
+// 2. Move old completed tasks from "Tasks" to "Completed"
+//    Runs on a schedule (via the web app, once a day)
 // ---------------------------------------------------------------------------
 function moveOldCompletedTasks() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var source = ss.getSheetByName('Tasks');
   var archive = ss.getSheetByName('Completed');
-  if (!source || !archive) return; // на случай, если название вкладки не совпадает
+  if (!source || !archive) return; // in case a tab name does not match
 
   var data = source.getDataRange().getValues();
   var today = new Date();
   var msPerDay = 24 * 60 * 60 * 1000;
 
-  for (var i = data.length - 1; i >= 1; i--) { // снизу вверх, чтобы удаление строк не сбивало индексы
+  for (var i = data.length - 1; i >= 1; i--) { // bottom-up so row deletion does not shift indexes
     var row = data[i];
     var status = row[3] ? row[3].toString().toLowerCase() : "";
     var dueDate = parseDateValue(row[5]);
@@ -145,20 +145,20 @@ function moveOldCompletedTasks() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Ежедневный расчёт % задач, выполненных в срок (по будням)
-//    Запускать по расписанию (Time-driven trigger, ежедневно)
+// 3. Daily computation of the % of tasks completed on time (weekdays only)
+//    Runs on a schedule (via the web app, once a day)
 // ---------------------------------------------------------------------------
 function logDailyOkrCompliance() {
   var today = new Date();
-  var day = today.getDay(); // 0 = воскресенье, 6 = суббота
-  if (day === 0 || day === 6) return; // пропускаем выходные
+  var day = today.getDay(); // 0 = Sunday, 6 = Saturday
+  if (day === 0 || day === 6) return; // skip weekends
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var tasksSheet = ss.getSheetByName('Tasks');
   var completedSheet = ss.getSheetByName('Completed');
   var summarySheet = ss.getSheetByName('OKR Summary');
 
-  // Создаём вкладку OKR Summary, если её ещё нет
+  // Create the OKR Summary tab if it does not exist yet
   if (!summarySheet) {
     summarySheet = ss.insertSheet('OKR Summary');
     summarySheet.appendRow(['Date', 'Total completed', 'On-time', 'Late', '% on-time']);
