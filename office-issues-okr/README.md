@@ -57,7 +57,7 @@ The daily PR is auto-approved by the **existing** `.github/workflows/auto-approv
 | `OFFICE_ISSUES_APPS_SCRIPT_URL` | the `/exec` URL from step 1.4 |
 | `OFFICE_ISSUES_APPS_SCRIPT_TOKEN` | the same string as `OKR_TOKEN` |
 | `OKRS_API_KEY` | GetOKRs API key *(already present for the other automation — reuse it)* |
-| `GH_PAT` | PAT of `MishaPash` *(already present — reuse it, so the PR is auto-approvable)* |
+| `Moa_PAT` | PAT of `MishaPash` *(already present for the other automation — reuse it, so the PR is auto-approvable)* |
 
 **Variables** are optional — the script already has the correct defaults baked in:
 

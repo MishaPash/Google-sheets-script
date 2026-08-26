@@ -59,7 +59,7 @@ jobs:
           # cannot approve your own PR) and lets it trigger downstream workflows.
           # Falls back to GITHUB_TOKEN if no PAT is configured (then the PR is
           # opened but not auto-approved).
-          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.Moa_PAT || secrets.GITHUB_TOKEN }}
           branch: okr/daily-office-issues
           base: main
           add-paths: |
