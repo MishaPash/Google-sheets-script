@@ -59,9 +59,10 @@ jobs:
           token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           branch: okr/weekly-office-satisfaction
           base: main
-          add-paths: |
-            office-satisfaction/reports/**
-            office-satisfaction/data/**
+          # Point at the folder (always has tracked files) rather than
+          # per-subdir globs — a glob like data/** fatals when the subdir is
+          # empty (e.g. dry runs, which don't write history.csv).
+          add-paths: office-satisfaction
           commit-message: "chore(okr): office satisfaction ${{ steps.okr.outputs.week_date }} = ${{ steps.okr.outputs.satisfaction }}%"
           title: "Office satisfaction ${{ steps.okr.outputs.week_date }}: ${{ steps.okr.outputs.satisfaction }}%"
           body: |
