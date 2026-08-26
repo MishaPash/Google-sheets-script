@@ -82,12 +82,27 @@ def read_sheet_value():
     # branch still runs the daily jobs, so the existing trigger is untouched).
     full = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(
         {"token": token, "action": "okr"})
+
+    # A browser-like User-Agent: Apps Script /exec sometimes serves an HTML
+    # interstitial to bare clients / datacenter IPs instead of the JSON.
+    req = urllib.request.Request(
+        full, headers={"User-Agent": "Mozilla/5.0 (office-issues-okr bot)"}, method="GET")
     try:
-        data = get_json(full)
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            status = getattr(resp, "status", None) or resp.getcode()
+            final_host = urllib.parse.urlparse(resp.geturl()).netloc
+            raw = resp.read().decode("utf-8", "ignore")
     except urllib.error.HTTPError as e:
-        die("Apps Script HTTP {}: {}".format(e.code, e.read().decode("utf-8", "ignore")[:300]))
+        die("Apps Script HTTP {}: {}".format(e.code, e.read().decode("utf-8", "ignore")[:400]))
     except Exception as e:  # noqa: BLE001
         die("Apps Script request failed: {}".format(e))
+
+    print("Apps Script: HTTP {}, final host {}, {} bytes".format(status, final_host, len(raw)))
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        snippet = " ".join(raw.split())[:400] or "<empty response>"
+        die("Apps Script did not return JSON. First chars: {}".format(snippet))
 
     if not data.get("ok"):
         die("Apps Script returned: {}".format(json.dumps(data)))
