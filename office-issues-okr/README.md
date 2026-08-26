@@ -34,19 +34,24 @@ The daily PR is auto-approved by the **existing** `.github/workflows/auto-approv
 
 ## One-time setup
 
-### 1. Deploy the Apps Script web app
+### 1. Extend the sheet's EXISTING Apps Script (no new deployment)
+
+The sheet already has a bound `Code.gs` with a `doGet(e)` (guarded by the
+Script Property `WEBAPP_TOKEN`) that a daily trigger calls to compute the
+"OKR Summary" tab. We reuse that same web app — do **not** create a second
+`doGet` or a new deployment.
 
 1. Open the source sheet → **Extensions → Apps Script**.
-2. Paste `apps_script/Code.gs` into a file (replace `Code.gs`). Optionally set the
-   manifest from `appsscript.json` (**Project Settings → “Show appsscript.json”**).
-3. **Project Settings → Script properties → Add property**
-   `OKR_TOKEN` = a long random string (this is the shared secret).
-4. **Deploy → New deployment → Web app**
-   - *Execute as:* **Me**
-   - *Who has access:* **Anyone with the link**
-   - Copy the **`/exec`** URL.
-5. (Sanity check) open `<exec-url>?token=YOUR_TOKEN` in a browser — you should get
-   JSON like `{"ok":true,"value":100,"matched_date":"2026-08-26",...}`.
+2. Add `apps_script/OkrExport.gs` as a **new file** (it has no `doGet`, so it
+   can't collide). All its names are prefixed `okr`/`OKR_`.
+3. In your **existing** `doGet`, right after the `WEBAPP_TOKEN` check, add the
+   `action === 'okr'` branch shown in `apps_script/doGet_router_snippet.js`.
+   Everything else in your `doGet` stays as-is.
+4. **Manage deployments → edit the existing web-app deployment → New version →
+   Deploy.** This keeps the SAME `/exec` URL, now serving the new branch too.
+5. (Sanity check) open `<exec-url>?token=YOUR_WEBAPP_TOKEN&action=okr` in a
+   browser — you should get JSON like
+   `{"ok":true,"value":100,"matched_date":"2026-08-26",...}`.
 
 ### 2. Add GitHub secrets & variables (repo → Settings)
 
@@ -54,8 +59,8 @@ The daily PR is auto-approved by the **existing** `.github/workflows/auto-approv
 
 | Secret | Value |
 | --- | --- |
-| `OFFICE_ISSUES_APPS_SCRIPT_URL` | the `/exec` URL from step 1.4 |
-| `OFFICE_ISSUES_APPS_SCRIPT_TOKEN` | the same string as `OKR_TOKEN` |
+| `OFFICE_ISSUES_APPS_SCRIPT_URL` | the existing web-app `/exec` URL (the Python script appends `&action=okr`) |
+| `OFFICE_ISSUES_APPS_SCRIPT_TOKEN` | the value of the `WEBAPP_TOKEN` Script Property |
 | `OKRS_API_KEY` | GetOKRs API key *(already present for the other automation — reuse it)* |
 | `Moa_PAT` | PAT of `MishaPash` *(already present for the other automation — reuse it, so the PR is auto-approvable)* |
 

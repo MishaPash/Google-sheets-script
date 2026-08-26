@@ -78,7 +78,10 @@ def read_sheet_value():
     if not token:
         die("OFFICE_ISSUES_APPS_SCRIPT_TOKEN is not set")
 
-    full = url + ("&" if "?" in url else "?") + urllib.parse.urlencode({"token": token})
+    # action=okr selects the JSON reader branch of the shared doGet (the default
+    # branch still runs the daily jobs, so the existing trigger is untouched).
+    full = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(
+        {"token": token, "action": "okr"})
     try:
         data = get_json(full)
     except urllib.error.HTTPError as e:
