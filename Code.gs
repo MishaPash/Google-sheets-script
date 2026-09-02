@@ -57,6 +57,7 @@ function doGet(e) {
 function onEdit(e) {
   if (!e || !e.range) return; // guard against manual runs without an edit event
   var sheet = e.source.getActiveSheet();
+  if (sheet.getName() !== 'Tasks') return; // only auto-fill on the "Tasks" sheet
   var row = e.range.getRow();
   var col = e.range.getColumn();
 
